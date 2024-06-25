@@ -1,0 +1,322 @@
+import psycopg2
+import calendar
+import matplotlib.pyplot as plt
+import numpy as np
+from colour import Color
+
+red = Color("red")
+colors = list(red.range_to(Color("green"),31))
+for i in range(len(colors)):
+    colors[i] = colors[i].rgb
+
+def get_table_names(start_year,end_year,start_month,end_month):
+    months = []
+    month_names = list(calendar.month_name)
+    j=start_month
+    for i in range(start_year,end_year+1):
+        while not (j>=end_month+1 and i>=end_year):
+            if j==13:
+                break
+            months.append(f"{month_names[j]}_{i}")
+            j+=1
+        j=1
+    return months
+
+def find_first_monday():
+    day = calendar.weekday(start_year,start_month,1)
+    return (8-day)%7
+
+
+conn = psycopg2.connect(database = "metro2", 
+                        user = "postgres", 
+                        host= 'localhost',
+                        password = "postgres",
+                        port = 5432)
+cur = conn.cursor()
+
+start_month = 3
+end_month = 5
+start_year = 2022
+end_year = 2022
+
+months = get_table_names(start_year,end_year,start_month,end_month)
+#find_first_monday()
+
+station = 'Edappally'
+
+all_data_weekday = []
+all_data_weekend = []
+weekdays = []
+weekends = []
+# total_days = 0
+for month in months:
+    month_data_weekday = [[]*24 for i in range(24)]
+    month_data_weekend = [[]*24 for i in range(24)]
+    week_data = [0]*7
+    week_count = [0]*7
+    # cur.execute(f''' SELECT DATE(entry_time) AS date_group, COUNT(*)
+    #                 FROM {month}
+    #                 WHERE origin = '{station}' and destination != '-1' and DATE(entry_time)<='2024-01-01'
+    #                 GROUP BY DATE(entry_time)
+    #                 ORDER BY DATE(entry_time)
+    #                 ''')
+    # count = cur.fetchall()
+    # total_days+= len(count)
+    
+    cur.execute(f'''SELECT DATE_TRUNC('hour', entry_time) as hour,DATE(entry_time), count(*) as total_sales 
+                    from {month}
+                    WHERE origin = '{station}' and destination != '-1' and DATE(entry_time)<='2024-01-01'
+                    GROUP BY Date(entry_time),hour
+                    order by hour;
+                    ''')
+    # cur.execute(f''' SELECT DATE(entry_time) AS date_group, COUNT(*)
+    #                 FROM trial1
+    #                 WHERE origin != '-1' and destination != '-1'
+    #                 GROUP BY DATE(entry_time)
+    #                 ''')
+    dates_count = cur.fetchall()
+    # print(dates_count)
+    # date_cur = dates_count[0][0].date()
+    # list1 = [0]*24
+    for i in dates_count:
+        if i[0].weekday() in [0,1,2,3,4]:
+            if i[0].date() not in weekdays:
+                weekdays.append(i[0].date())
+            if len(month_data_weekday[i[0].hour])==0:
+                month_data_weekday[i[0].hour] = [0]*31
+            # print(month_data,i[0].hour,i[0].day)
+            # print('ada',month_data[7])
+            month_data_weekday[i[0].hour][i[0].day-1]=i[2]
+        else:
+            if i[0].date() not in weekends:
+                weekends.append(i[0].date())
+            if len(month_data_weekend[i[0].hour])==0:
+                month_data_weekend[i[0].hour] = [0]*31
+            # print(month_data,i[0].hour,i[0].day)
+            # print('ada',month_data[7])
+            month_data_weekend[i[0].hour][i[0].day-1]=i[2]
+    all_data_weekday.append(month_data_weekday)
+    all_data_weekend.append(month_data_weekend)
+    # for i in dates_count:
+    #     day = i[0].weekday()
+    #     week_data[day]+=i[1]
+    #     week_count[day]+=1
+    # avg_weekly = [week_data[i]/week_count[i] for i in range(7)]
+    # month_data.append(avg_weekly)
+# print(month_data)
+# print(len(month_data))
+
+# print(all_data)
+hourly_data_weekday = [0]*24
+hourly_data_weekend = [0]*24
+
+for i in all_data_weekday:
+    for j in range(len(i)):
+        # print(j)
+        for k in i[j]:
+            hourly_data_weekday[j]+=k
+for i in range(len(hourly_data_weekday)):
+    hourly_data_weekday[i] = hourly_data_weekday[i]/len(weekdays)
+    
+for i in all_data_weekend:
+    for j in range(len(i)):
+        # print(j)
+        for k in i[j]:
+            hourly_data_weekend[j]+=k
+for i in range(len(hourly_data_weekend)):
+    hourly_data_weekend[i] = hourly_data_weekend[i]/len(weekends)
+    
+# print(len(all_data[0][12]))
+print(hourly_data_weekday)
+print(hourly_data_weekend)
+print(weekdays)
+# k = kksfg
+barWidth = 0.4
+fig, (ax1,ax2) = plt.subplots(2,figsize =(20, 8))
+
+# br = [np.arange(0,31)]
+# print()
+# for k in range(1,31):
+#     print("brprev:",br[k-1])
+#     brint = [round(x + barWidth,2) for x in br[k-1]]
+#     print('brint:',brint)
+#     br.append(brint)
+# for i in br:
+    # print(br)
+    # print('{:.2f}'.format(br))
+# print(br)
+# for k in range(len(month_data)):
+#     if len(month_data[k])==0:
+#         continue
+#     colorfaf = colors[k]
+#     print(colorfaf)
+#     print('br:',br[k])
+#     plt.bar(br[k], month_data[k], width = barWidth, 
+#         edgecolor = colors ,color = colors)
+#     if k==10:
+#         pass
+
+# bar
+br1 = np.arange(24) 
+br2 = [x + barWidth + 0.05 for x in br1] 
+# br3 = [x + barWidth for x in br2] 
+ 
+# # Make the plot
+# plt.bar(br1, month_data[0], color ='r', width = barWidth, 
+#         edgecolor ='grey', label ='Jun') 
+# plt.bar(br2, month_data[1], color ='g', width = barWidth, 
+#         edgecolor ='grey', label ='July') 
+# plt.bar(br3, month_data[2], color ='b', width = barWidth, 
+#         edgecolor ='grey', label ='Aug') 
+ 
+# Adding Xticks 
+fig.suptitle(f"{station} travel pattens")
+ax1.set_title('Origin')
+ax1.bar(br1,hourly_data_weekday,label='Weekday',width=barWidth,color='b')
+ax1.bar(br2,hourly_data_weekend,label='Weekend',width=barWidth,color='r')
+plt.legend()
+ax1.set_xlabel('Hours', fontweight ='bold', fontsize = 15) 
+ax1.set_ylabel('Avg hourly travel', fontweight ='bold', fontsize = 15) 
+# plt.xticks([r + barWidth for r in range(len(month_data[0]))], 
+        # range(len(month_data)))
+        
+        
+        
+all_data_weekday = []
+all_data_weekend = []
+weekdays = []
+weekends = []
+# total_days = 0
+for month in months:
+    month_data_weekday = [[]*24 for i in range(24)]
+    month_data_weekend = [[]*24 for i in range(24)]
+    week_data = [0]*7
+    week_count = [0]*7
+    # cur.execute(f''' SELECT DATE(entry_time) AS date_group, COUNT(*)
+    #                 FROM {month}
+    #                 WHERE origin != '-1' and destination = '{station}' and DATE(entry_time)<='2024-01-01'
+    #                 GROUP BY DATE(entry_time)
+    #                 ORDER BY DATE(entry_time)
+    #                 ''')
+    # count = cur.fetchall()
+    # total_days+= len(count)
+    
+    cur.execute(f'''SELECT DATE_TRUNC('hour', entry_time) as hour,DATE(entry_time), count(*) as total_sales 
+                    from {month}
+                    WHERE origin != '-1' and destination = '{station}' and DATE(entry_time)<='2024-01-01'
+                    GROUP BY Date(entry_time),hour
+                    order by hour;
+                    ''')
+    # cur.execute(f''' SELECT DATE(entry_time) AS date_group, COUNT(*)
+    #                 FROM trial1
+    #                 WHERE origin != '-1' and destination != '-1'
+    #                 GROUP BY DATE(entry_time)
+    #                 ''')
+    dates_count = cur.fetchall()
+    # print(dates_count)
+    # date_cur = dates_count[0][0].date()
+    # list1 = [0]*24
+    for i in dates_count:
+        if i[0].weekday() in [0,1,2,3,4]:
+            if i[0].date() not in weekdays:
+                weekdays.append(i[0].date())
+            if len(month_data_weekday[i[0].hour])==0:
+                month_data_weekday[i[0].hour] = [0]*31
+            # print(month_data,i[0].hour,i[0].day)
+            # print('ada',month_data[7])
+            month_data_weekday[i[0].hour][i[0].day-1]=i[2]
+        else:
+            if i[0].date() not in weekends:
+                weekends.append(i[0].date())
+            if len(month_data_weekend[i[0].hour])==0:
+                month_data_weekend[i[0].hour] = [0]*31
+            # print(month_data,i[0].hour,i[0].day)
+            # print('ada',month_data[7])
+            month_data_weekend[i[0].hour][i[0].day-1]=i[2]
+    all_data_weekday.append(month_data_weekday)
+    all_data_weekend.append(month_data_weekend)
+    # for i in dates_count:
+    #     day = i[0].weekday()
+    #     week_data[day]+=i[1]
+    #     week_count[day]+=1
+    # avg_weekly = [week_data[i]/week_count[i] for i in range(7)]
+    # month_data.append(avg_weekly)
+# print(month_data)
+# print(len(month_data))
+
+# print(all_data)
+hourly_data_weekday = [0]*24
+hourly_data_weekend = [0]*24
+
+for i in all_data_weekday:
+    for j in range(len(i)):
+        # print(j)
+        for k in i[j]:
+            hourly_data_weekday[j]+=k
+for i in range(len(hourly_data_weekday)):
+    hourly_data_weekday[i] = hourly_data_weekday[i]/len(weekdays)
+    
+for i in all_data_weekend:
+    for j in range(len(i)):
+        # print(j)
+        for k in i[j]:
+            hourly_data_weekend[j]+=k
+for i in range(len(hourly_data_weekend)):
+    hourly_data_weekend[i] = hourly_data_weekend[i]/len(weekends)
+    
+# print(len(all_data[0][12]))
+print(hourly_data_weekday)
+print(hourly_data_weekend)
+print(weekends)
+# k = kksfg
+barWidth = 0.4
+# fig, ax = plt.subplots(figsize =(20, 8))
+
+# br = [np.arange(0,31)]
+# print()
+# for k in range(1,31):
+#     print("brprev:",br[k-1])
+#     brint = [round(x + barWidth,2) for x in br[k-1]]
+#     print('brint:',brint)
+#     br.append(brint)
+# for i in br:
+    # print(br)
+    # print('{:.2f}'.format(br))
+# print(br)
+# for k in range(len(month_data)):
+#     if len(month_data[k])==0:
+#         continue
+#     colorfaf = colors[k]
+#     print(colorfaf)
+#     print('br:',br[k])
+#     plt.bar(br[k], month_data[k], width = barWidth, 
+#         edgecolor = colors ,color = colors)
+#     if k==10:
+#         pass
+
+# bar
+br1 = np.arange(24) 
+br2 = [x + barWidth + 0.05 for x in br1] 
+# br3 = [x + barWidth for x in br2] 
+ 
+# # Make the plot
+# plt.bar(br1, month_data[0], color ='r', width = barWidth, 
+#         edgecolor ='grey', label ='Jun') 
+# plt.bar(br2, month_data[1], color ='g', width = barWidth, 
+#         edgecolor ='grey', label ='July') 
+# plt.bar(br3, month_data[2], color ='b', width = barWidth, 
+#         edgecolor ='grey', label ='Aug') 
+ 
+# Adding Xticks 
+ax2.set_title('Destination')
+ax2.bar(br2,hourly_data_weekend,label='Weekend',width=barWidth,color='r')
+ax2.bar(br1,hourly_data_weekday,label='Weekday',width=barWidth,color='b')
+ax2.set_xlabel('Hours', fontweight ='bold', fontsize = 15) 
+ax2.set_ylabel('Avg hourly travel', fontweight ='bold', fontsize = 15) 
+# plt.xticks([r + barWidth for r in range(len(month_data[0]))], 
+        # range(len(month_data)))
+plt.tight_layout()
+plt.legend()
+plt.show() 
+
+
